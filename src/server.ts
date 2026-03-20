@@ -1,19 +1,20 @@
-const express = require('express');
-const path = require('path');
-const { searchAll, stores } = require('./stores');
+import express, { Request, Response } from 'express';
+import path from 'path';
+import { searchAll, stores } from './stores';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-app.use(express.static(path.join(__dirname, 'public')));
+app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use(express.json());
 
-// Search API endpoint
-app.get('/api/search', async (req, res) => {
-  const { q, stores: storeFilter } = req.query;
+app.get('/api/search', async (req: Request, res: Response) => {
+  const q = req.query.q as string | undefined;
+  const storeFilter = req.query.stores as string | undefined;
 
   if (!q || !q.trim()) {
-    return res.json({ results: [], query: '' });
+    res.json({ results: [], query: '' });
+    return;
   }
 
   const query = q.trim();
@@ -22,7 +23,6 @@ app.get('/api/search', async (req, res) => {
   try {
     const results = await searchAll(query, selectedStores);
 
-    // Sort: results with prices first, then by store
     results.sort((a, b) => {
       if (a.priceValue && !b.priceValue) return -1;
       if (!a.priceValue && b.priceValue) return 1;
@@ -33,12 +33,11 @@ app.get('/api/search', async (req, res) => {
     res.json({ results, query, total: results.length });
   } catch (err) {
     console.error('Search error:', err);
-    res.status(500).json({ error: 'Search failed', message: err.message });
+    res.status(500).json({ error: 'Search failed', message: (err as Error).message });
   }
 });
 
-// Available stores
-app.get('/api/stores', (req, res) => {
+app.get('/api/stores', (_req: Request, res: Response) => {
   const storeList = Object.entries(stores).map(([key, store]) => ({
     key,
     name: store.STORE_NAME,

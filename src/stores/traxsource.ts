@@ -1,12 +1,18 @@
-const fetch = require('node-fetch');
-const cheerio = require('cheerio');
+import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
+import { TrackResult, StoreAdapter } from '../types';
 
-const STORE_NAME = 'Traxsource';
+export const STORE_NAME = 'Traxsource';
 const STORE_URL = 'https://www.traxsource.com';
 
-async function search(query) {
+function parsePrice(str: string): number | null {
+  const match = str.match(/[\d.]+/);
+  return match ? parseFloat(match[0]) : null;
+}
+
+export async function search(query: string): Promise<TrackResult[]> {
   try {
-    const url = `https://www.traxsource.com/search?term=${encodeURIComponent(query)}`;
+    const url = `${STORE_URL}/search?term=${encodeURIComponent(query)}`;
     const res = await fetch(url, {
       timeout: 10000,
       headers: {
@@ -20,7 +26,7 @@ async function search(query) {
 
     const html = await res.text();
     const $ = cheerio.load(html);
-    const results = [];
+    const results: TrackResult[] = [];
 
     $('.trk-row, .search-trk-row').each((_, el) => {
       const $el = $(el);
@@ -28,7 +34,7 @@ async function search(query) {
       const artist = $el.find('.artists a, .trk-artists a').map((_, a) => $(a).text().trim()).get().join(', ');
       const label = $el.find('.label a, .trk-label a').first().text().trim();
       const genre = $el.find('.genre a, .trk-genre a').first().text().trim();
-      const price = $el.find('.add-cart .price, .buy-btn, .trk-price').first().text().trim();
+      const priceText = $el.find('.add-cart .price, .buy-btn, .trk-price').first().text().trim();
       const link = $el.find('.title a, .trk-name a').first().attr('href');
       const img = $el.find('img.lazy, img.trk-art').first().attr('data-src') || $el.find('img').first().attr('src');
 
@@ -41,8 +47,8 @@ async function search(query) {
           bpm: $el.find('.bpm, .trk-bpm').first().text().trim() || null,
           key: $el.find('.key, .trk-key').first().text().trim() || null,
           duration: $el.find('.duration, .trk-duration').first().text().trim(),
-          price: price || '$1.49',
-          priceValue: parsePrice(price || '$1.49'),
+          price: priceText || '$1.49',
+          priceValue: parsePrice(priceText || '$1.49'),
           currency: 'USD',
           artwork: img || null,
           url: link ? (link.startsWith('http') ? link : `${STORE_URL}${link}`) : `${STORE_URL}/search?term=${encodeURIComponent(query)}`,
@@ -55,14 +61,9 @@ async function search(query) {
 
     return results.slice(0, 25);
   } catch (err) {
-    console.error(`Traxsource search error: ${err.message}`);
+    console.error(`Traxsource search error: ${(err as Error).message}`);
     return [];
   }
 }
 
-function parsePrice(str) {
-  const match = str.match(/[\d.]+/);
-  return match ? parseFloat(match[0]) : null;
-}
-
-module.exports = { search, STORE_NAME };
+export default { search, STORE_NAME } satisfies StoreAdapter;

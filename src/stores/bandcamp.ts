@@ -1,12 +1,19 @@
-const fetch = require('node-fetch');
-const cheerio = require('cheerio');
+import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
+import { TrackResult, StoreAdapter } from '../types';
 
-const STORE_NAME = 'Bandcamp';
+export const STORE_NAME = 'Bandcamp';
 const STORE_URL = 'https://bandcamp.com';
 
-async function search(query) {
+function parsePrice(str: string | null): number | null {
+  if (!str) return null;
+  const match = str.match(/[\d.]+/);
+  return match ? parseFloat(match[0]) : null;
+}
+
+export async function search(query: string): Promise<TrackResult[]> {
   try {
-    const url = `https://bandcamp.com/search?q=${encodeURIComponent(query)}&item_type=t`;
+    const url = `${STORE_URL}/search?q=${encodeURIComponent(query)}&item_type=t`;
     const res = await fetch(url, {
       timeout: 10000,
       headers: {
@@ -20,7 +27,7 @@ async function search(query) {
 
     const html = await res.text();
     const $ = cheerio.load(html);
-    const results = [];
+    const results: TrackResult[] = [];
 
     $('.searchresult.track, .result-items .searchresult').each((_, el) => {
       const $el = $(el);
@@ -30,7 +37,6 @@ async function search(query) {
       const subhead = $el.find('.subhead').first().text().trim();
       const img = $el.find('img.art, .art img').first().attr('src');
 
-      // Subhead format: "from <album> by <artist>"
       let artist = '';
       let album = '';
       const byMatch = subhead.match(/by\s+(.+)/i);
@@ -64,15 +70,9 @@ async function search(query) {
 
     return results.slice(0, 25);
   } catch (err) {
-    console.error(`Bandcamp search error: ${err.message}`);
+    console.error(`Bandcamp search error: ${(err as Error).message}`);
     return [];
   }
 }
 
-function parsePrice(str) {
-  if (!str) return null;
-  const match = str.match(/[\d.]+/);
-  return match ? parseFloat(match[0]) : null;
-}
-
-module.exports = { search, STORE_NAME };
+export default { search, STORE_NAME } satisfies StoreAdapter;

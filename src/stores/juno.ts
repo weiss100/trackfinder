@@ -1,12 +1,18 @@
-const fetch = require('node-fetch');
-const cheerio = require('cheerio');
+import fetch from 'node-fetch';
+import * as cheerio from 'cheerio';
+import { TrackResult, StoreAdapter } from '../types';
 
-const STORE_NAME = 'Juno Download';
+export const STORE_NAME = 'Juno Download';
 const STORE_URL = 'https://www.junodownload.com';
 
-async function search(query) {
+function parsePrice(str: string): number | null {
+  const match = str.match(/[\d.]+/);
+  return match ? parseFloat(match[0]) : null;
+}
+
+export async function search(query: string): Promise<TrackResult[]> {
   try {
-    const url = `https://www.junodownload.com/search/?q%5Ball%5D%5B%5D=${encodeURIComponent(query)}&solrorder=relevancy`;
+    const url = `${STORE_URL}/search/?q%5Ball%5D%5B%5D=${encodeURIComponent(query)}&solrorder=relevancy`;
     const res = await fetch(url, {
       timeout: 10000,
       headers: {
@@ -20,7 +26,7 @@ async function search(query) {
 
     const html = await res.text();
     const $ = cheerio.load(html);
-    const results = [];
+    const results: TrackResult[] = [];
 
     $('.product-tracklist .product-tracklist-track, .jd-listing-item, .product').each((_, el) => {
       const $el = $(el);
@@ -28,7 +34,7 @@ async function search(query) {
       const artist = $el.find('.product-tracklist-track-artists a, .juno-artist a, .product-artist a').map((_, a) => $(a).text().trim()).get().join(', ');
       const label = $el.find('.product-label a, .juno-label a').first().text().trim();
       const genre = $el.find('.product-genre a, .juno-genre a').first().text().trim();
-      const price = $el.find('.product-buy .price, .buy-btn-price, .product-price').first().text().trim();
+      const priceText = $el.find('.product-buy .price, .buy-btn-price, .product-price').first().text().trim();
       const link = $el.find('.product-tracklist-track-title a, .juno-title a, .product-title a').first().attr('href');
       const img = $el.find('img').first().attr('data-src') || $el.find('img').first().attr('src');
 
@@ -41,8 +47,8 @@ async function search(query) {
           bpm: null,
           key: null,
           duration: '',
-          price: price || '£1.49',
-          priceValue: parsePrice(price || '£1.49'),
+          price: priceText || '£1.49',
+          priceValue: parsePrice(priceText || '£1.49'),
           currency: 'GBP',
           artwork: img || null,
           url: link ? (link.startsWith('http') ? link : `${STORE_URL}${link}`) : `${STORE_URL}/search/?q%5Ball%5D%5B%5D=${encodeURIComponent(query)}`,
@@ -55,14 +61,9 @@ async function search(query) {
 
     return results.slice(0, 25);
   } catch (err) {
-    console.error(`Juno Download search error: ${err.message}`);
+    console.error(`Juno Download search error: ${(err as Error).message}`);
     return [];
   }
 }
 
-function parsePrice(str) {
-  const match = str.match(/[\d.]+/);
-  return match ? parseFloat(match[0]) : null;
-}
-
-module.exports = { search, STORE_NAME };
+export default { search, STORE_NAME } satisfies StoreAdapter;
