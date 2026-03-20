@@ -1,0 +1,15 @@
+{
+  "name": "trackfinder",
+  "version": "1.0.0",
+  "description": "DJ Track Search Engine - Find and compare track prices across music stores",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.18.2",
+    "node-fetch": "^2.7.0",
+    "cheerio": "^1.0.0-rc.12"
+  }
+}

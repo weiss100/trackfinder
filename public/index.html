@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TrackFinder - DJ Track Search</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>TrackFinder</h1>
+      <p class="subtitle">Finde Tracks &amp; vergleiche Preise</p>
+    </header>
+
+    <div class="search-section">
+      <form id="searchForm" class="search-form">
+        <div class="search-input-wrap">
+          <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Track, Artist oder Label suchen..."
+            autocomplete="off"
+            autofocus
+          >
+          <button type="submit" id="searchBtn">Suchen</button>
+        </div>
+      </form>
+
+      <div class="store-filters" id="storeFilters">
+        <button class="store-chip active" data-store="all">Alle Stores</button>
+        <button class="store-chip" data-store="beatport">Beatport</button>
+        <button class="store-chip" data-store="traxsource">Traxsource</button>
+        <button class="store-chip" data-store="juno">Juno Download</button>
+        <button class="store-chip" data-store="bandcamp">Bandcamp</button>
+        <button class="store-chip" data-store="itunes">iTunes</button>
+      </div>
+    </div>
+
+    <div id="status" class="status hidden"></div>
+
+    <div id="results" class="results"></div>
+
+    <div id="emptyState" class="empty-state">
+      <div class="empty-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="64" height="64">
+          <path d="M9 18V5l12-2v13"/>
+          <circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/>
+        </svg>
+      </div>
+      <p>Suche nach Tracks in 5 Stores gleichzeitig</p>
+      <p class="empty-stores">Beatport &bull; Traxsource &bull; Juno Download &bull; Bandcamp &bull; iTunes</p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
