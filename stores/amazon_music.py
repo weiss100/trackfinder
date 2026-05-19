@@ -50,11 +50,16 @@ def search(query: str) -> list[TrackResult]:
         results: list[TrackResult] = []
 
         for item in soup.select('[data-component-type="s-search-result"]')[:25]:
+            # Skip sponsored ads — Amazon injects paid placements from other
+            # categories (books, greeting cards, mugs) into music search.
+            if item.select_one(".puis-sponsored-label-text"):
+                continue
+
             h2 = item.select_one("h2")
             if not h2:
                 continue
             title = h2.get("aria-label") or h2.get_text(strip=True)
-            if not title:
+            if not title or title.startswith("Gesponserte Anzeige"):
                 continue
 
             link_el = item.select_one('[data-cy="title-recipe"] a[href]')
