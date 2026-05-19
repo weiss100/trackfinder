@@ -18,91 +18,88 @@ _HEADERS = {
 }
 
 
-def _format_duration(seconds: int) -> str:
-    mins = seconds // 60
-    secs = seconds % 60
-    return f"{mins}:{secs:02d}"
+def _format_duration(ms: int) -> str:
+    total = ms // 1000
+    return f"{total // 60}:{total % 60:02d}"
 
 
-def _parse_price(s: str) -> float | None:
-    m = re.search(r"[\d.]+", s)
-    return float(m.group()) if m else None
+def _slug(text: str) -> str:
+    text = re.sub(r"[^\w\s-]", "", text.lower())
+    return re.sub(r"\s+", "-", text.strip()) or "track"
 
 
-def _extract_tracks(data, results: list[TrackResult] | None = None) -> list[TrackResult]:
-    if results is None:
-        results = []
-    if data is None or not isinstance(data, (dict, list)):
-        return results
+def _find_tracks_list(queries: list) -> list:
+    for q in queries:
+        try:
+            tracks = q["state"]["data"]["tracks"]
+        except (KeyError, TypeError):
+            continue
+        if isinstance(tracks, dict) and isinstance(tracks.get("data"), list):
+            return tracks["data"]
+        if isinstance(tracks, list):
+            return tracks
+    return []
 
-    if isinstance(data, list):
-        for item in data:
-            _extract_tracks(item, results)
-        return results
 
-    obj = data
-    if obj.get("name") and (obj.get("artists") or obj.get("artist")) and (obj.get("slug") or obj.get("id")):
-        artists_list = obj.get("artists")
-        artist_obj = obj.get("artist")
-        if artists_list:
-            artist_names = ", ".join(a.get("name", str(a)) if isinstance(a, dict) else str(a) for a in artists_list)
-        elif isinstance(artist_obj, dict):
-            artist_names = artist_obj.get("name", "")
-        else:
-            artist_names = str(artist_obj or "")
+def _build_track(t: dict) -> TrackResult | None:
+    track_id = t.get("track_id")
+    title = t.get("track_name") or t.get("name") or ""
+    if not track_id or not title:
+        return None
 
-        label = obj.get("label") or {}
-        release = obj.get("release") or {}
-        genre_obj = obj.get("genre") or {}
-        genres = obj.get("genres") or []
-        key_obj = obj.get("key")
-        price_obj = obj.get("price") or {}
-        image = obj.get("image") or {}
-        date_obj = obj.get("date") or {}
+    mix = t.get("mix_name") or ""
+    display_title = f"{title} ({mix})" if mix and mix.lower() != "original mix" else title
 
-        label_name = label.get("name", "") if isinstance(label, dict) else ""
-        if not label_name and isinstance(release, dict):
-            rl = release.get("label")
-            label_name = rl.get("name", "") if isinstance(rl, dict) else ""
+    artists = ", ".join(a.get("artist_name", "") for a in t.get("artists") or []).strip(", ")
 
-        genre_name = genre_obj.get("name", "") if isinstance(genre_obj, dict) else ""
-        if not genre_name and genres:
-            genre_name = genres[0].get("name", "") if isinstance(genres[0], dict) else ""
+    label = ""
+    if isinstance(t.get("label"), dict):
+        label = t["label"].get("label_name", "")
 
-        key_name = key_obj.get("name") if isinstance(key_obj, dict) else key_obj
-        price_val = price_obj.get("value") if isinstance(price_obj, dict) else None
-        price_cur = price_obj.get("currency", "USD") if isinstance(price_obj, dict) else "USD"
-        img_uri = image.get("uri") if isinstance(image, dict) else None
-        if not img_uri and isinstance(release, dict):
-            ri = release.get("image")
-            img_uri = ri.get("uri") if isinstance(ri, dict) else None
+    genres = t.get("genre") or []
+    genre = genres[0].get("genre_name", "") if genres and isinstance(genres[0], dict) else ""
 
-        length = obj.get("length")
-        duration = _format_duration(int(length)) if isinstance(length, (int, float)) else ""
+    bpm = str(t["bpm"]) if t.get("bpm") else None
+    key = t.get("key_name") or None
 
-        results.append(TrackResult(
-            title=str(obj.get("name") or obj.get("title") or ""),
-            artist=artist_names,
-            label=label_name,
-            genre=genre_name,
-            bpm=str(obj["bpm"]) if obj.get("bpm") else None,
-            key=key_name or None,
-            duration=duration,
-            price=f"${price_val / 100:.2f}" if price_val else "$1.29",
-            price_value=price_val / 100 if price_val else 1.29,
-            currency=price_cur,
-            artwork=img_uri,
-            url=f"{_STORE_URL}/track/{obj.get('slug')}/{obj.get('id')}" if obj.get("slug") else _STORE_URL,
-            store=STORE_NAME,
-            store_icon="beatport",
-            release_date=date_obj.get("published", "") if isinstance(date_obj, dict) else str(obj.get("publish_date", "")),
-        ))
-    else:
-        for val in obj.values():
-            if isinstance(val, (dict, list)) and len(results) < 25:
-                _extract_tracks(val, results)
+    duration = _format_duration(t["length"]) if isinstance(t.get("length"), int) else ""
 
-    return results
+    price_obj = t.get("price") or {}
+    price_value = price_obj.get("value") if isinstance(price_obj, dict) else None
+    currency = price_obj.get("code", "USD") if isinstance(price_obj, dict) else "USD"
+    price_display = price_obj.get("display") if isinstance(price_obj, dict) else None
+    price = price_display or (f"{price_value:.2f} {currency}" if price_value else "N/A")
+
+    artwork = None
+    release = t.get("release") or {}
+    if isinstance(release, dict):
+        artwork = release.get("release_image_uri")
+    if not artwork:
+        artwork = t.get("track_image_uri")
+
+    release_date = (t.get("publish_date") or t.get("release_date") or "")
+    if isinstance(release_date, str):
+        release_date = release_date.split("T")[0]
+
+    url = f"{_STORE_URL}/track/{_slug(title)}/{track_id}"
+
+    return TrackResult(
+        title=display_title,
+        artist=artists,
+        label=label,
+        genre=genre,
+        bpm=bpm,
+        key=key,
+        duration=duration,
+        price=price,
+        price_value=price_value,
+        currency=currency,
+        artwork=artwork,
+        url=url,
+        store=STORE_NAME,
+        store_icon="beatport",
+        release_date=release_date,
+    )
 
 
 def search(query: str) -> list[TrackResult]:
@@ -112,71 +109,20 @@ def search(query: str) -> list[TrackResult]:
         if not resp.ok:
             return []
 
-        html = resp.text
-        soup = BeautifulSoup(html, "html.parser")
-        results: list[TrackResult] = []
-
-        # Try __NEXT_DATA__ first
-        page_data = None
+        soup = BeautifulSoup(resp.text, "html.parser")
         tag = soup.find("script", id="__NEXT_DATA__")
-        if tag and tag.string:
-            try:
-                parsed = json.loads(tag.string)
-                page_data = parsed.get("props", {}).get("pageProps")
-            except (json.JSONDecodeError, AttributeError):
-                pass
+        if not tag or not tag.string:
+            return []
 
-        # Try other JSON scripts
-        if not page_data:
-            for script in soup.find_all("script", {"type": "application/json"}):
-                try:
-                    text = script.string
-                    if text and "tracks" in text:
-                        page_data = json.loads(text)
-                        break
-                except (json.JSONDecodeError, AttributeError):
-                    pass
+        data = json.loads(tag.string)
+        queries = data.get("props", {}).get("pageProps", {}).get("dehydratedState", {}).get("queries", [])
+        tracks = _find_tracks_list(queries)
 
-        if page_data:
-            return _extract_tracks(page_data)[:25]
-
-        # Fallback: parse HTML
-        for el in soup.select('[data-testid="track-row"], .track-row, .bucket-item'):
-            title_el = el.select_one('.track-title, [data-testid="track-title"]')
-            title = title_el.get_text(strip=True) if title_el else ""
-            artist_el = el.select_one('.track-artists, [data-testid="track-artists"]')
-            artist = artist_el.get_text(strip=True) if artist_el else ""
-            price_el = el.select_one('.add-to-cart-btn, .price, [data-testid="price"]')
-            price_text = price_el.get_text(strip=True) if price_el else ""
-            link_el = el.select_one('a[href*="/track/"]')
-            link = link_el["href"] if link_el else None
-
-            if title:
-                label_el = el.select_one('.track-label, [data-testid="track-label"]')
-                genre_el = el.select_one('.track-genre, [data-testid="track-genre"]')
-                bpm_el = el.select_one('.track-bpm, [data-testid="track-bpm"]')
-                key_el = el.select_one('.track-key, [data-testid="track-key"]')
-                dur_el = el.select_one('.track-duration, [data-testid="track-duration"]')
-                img_el = el.select_one("img")
-
-                results.append(TrackResult(
-                    title=title,
-                    artist=artist,
-                    label=label_el.get_text(strip=True) if label_el else "",
-                    genre=genre_el.get_text(strip=True) if genre_el else "",
-                    bpm=bpm_el.get_text(strip=True) if bpm_el else None,
-                    key=key_el.get_text(strip=True) if key_el else None,
-                    duration=dur_el.get_text(strip=True) if dur_el else "",
-                    price=price_text or "$1.29",
-                    price_value=_parse_price(price_text or "$1.29"),
-                    currency="USD",
-                    artwork=img_el["src"] if img_el and img_el.get("src") else None,
-                    url=f"{_STORE_URL}{link}" if link else f"{_STORE_URL}/search?q={quote(query)}",
-                    store=STORE_NAME,
-                    store_icon="beatport",
-                    release_date="",
-                ))
-
+        results: list[TrackResult] = []
+        for t in tracks[:25]:
+            built = _build_track(t)
+            if built:
+                results.append(built)
         return results
     except Exception as e:
         print(f"Beatport search error: {e}")

@@ -16,10 +16,23 @@ _HEADERS = {
     "Accept-Language": "en-US,en;q=0.9",
 }
 
+_PRICE_RE = re.compile(r"([£€$])\s*(\d+[.,]\d{2})")
+_CURRENCY_BY_SYMBOL = {"£": "GBP", "€": "EUR", "$": "USD"}
 
-def _parse_price(s: str) -> float | None:
-    m = re.search(r"[\d.]+", s)
-    return float(m.group()) if m else None
+
+def _parse_price(text: str):
+    if not text:
+        return text or "N/A", None, "GBP"
+    m = _PRICE_RE.search(text)
+    if not m:
+        return text.strip(), None, "GBP"
+    symbol, num = m.group(1), m.group(2).replace(",", ".")
+    try:
+        value = float(num)
+    except ValueError:
+        return text.strip(), None, "GBP"
+    currency = _CURRENCY_BY_SYMBOL.get(symbol, "GBP")
+    return f"{symbol}{value:.2f}", value, currency
 
 
 def search(query: str) -> list[TrackResult]:
@@ -32,41 +45,62 @@ def search(query: str) -> list[TrackResult]:
         soup = BeautifulSoup(resp.text, "html.parser")
         results: list[TrackResult] = []
 
-        for el in soup.select(".product-tracklist .product-tracklist-track, .jd-listing-item, .product"):
-            title_el = el.select_one(".product-tracklist-track-title a, .juno-title a, .product-title a")
-            title = title_el.get_text(strip=True) if title_el else ""
-            artist = ", ".join(a.get_text(strip=True) for a in el.select(".product-tracklist-track-artists a, .juno-artist a, .product-artist a"))
-            label_el = el.select_one(".product-label a, .juno-label a")
+        for el in soup.select(".jd-listing-item"):
+            title_el = el.select_one(".juno-title")
+            if not title_el:
+                continue
+            title = title_el.get_text(strip=True)
+            link = title_el.get("href", "")
+            if not title or not link:
+                continue
+
+            artist = ", ".join(a.get_text(strip=True) for a in el.select(".juno-artist a"))
+            label_el = el.select_one(".juno-label")
             label = label_el.get_text(strip=True) if label_el else ""
-            genre_el = el.select_one(".product-genre a, .juno-genre a")
-            genre = genre_el.get_text(strip=True) if genre_el else ""
-            price_el = el.select_one(".product-buy .price, .buy-btn-price, .product-price")
-            price_text = price_el.get_text(strip=True) if price_el else ""
-            link = title_el["href"] if title_el and title_el.get("href") else None
-            img_el = el.select_one("img")
-            img = (img_el.get("data-src") or img_el.get("src")) if img_el else None
 
-            if title:
-                full_url = link if link and link.startswith("http") else f"{_STORE_URL}{link}" if link else f"{_STORE_URL}/search/?q%5Ball%5D%5B%5D={quote(query)}"
-                results.append(TrackResult(
-                    title=title,
-                    artist=artist,
-                    label=label,
-                    genre=genre,
-                    bpm=None,
-                    key=None,
-                    duration="",
-                    price=price_text or "£1.49",
-                    price_value=_parse_price(price_text or "£1.49"),
-                    currency="GBP",
-                    artwork=img,
-                    url=full_url,
-                    store=STORE_NAME,
-                    store_icon="juno",
-                    release_date="",
-                ))
+            price_el = el.select_one("a.btn-cta")
+            price_text = price_el.get_text(" ", strip=True) if price_el else ""
+            price, price_value, currency = _parse_price(price_text)
 
-        return results[:25]
+            genre = ""
+            release_date = ""
+            meta_el = el.select_one(".text-muted")
+            if meta_el:
+                for line in [s.strip() for s in meta_el.stripped_strings]:
+                    if re.match(r"^\d{1,2}\s+[A-Za-z]{3}\s+\d{2,4}$", line):
+                        release_date = line
+                    elif "/" in line or "House" in line or "Techno" in line or "Trance" in line:
+                        genre = line
+
+            img_el = el.select_one("img.li-img")
+            img = None
+            if img_el:
+                img = img_el.get("src") or img_el.get("data-src")
+
+            full_url = link if link.startswith("http") else f"{_STORE_URL}{link}"
+
+            results.append(TrackResult(
+                title=title,
+                artist=artist,
+                label=label,
+                genre=genre,
+                bpm=None,
+                key=None,
+                duration="",
+                price=price,
+                price_value=price_value,
+                currency=currency,
+                artwork=img,
+                url=full_url,
+                store=STORE_NAME,
+                store_icon="juno",
+                release_date=release_date,
+            ))
+
+            if len(results) >= 25:
+                break
+
+        return results
     except Exception as e:
         print(f"Juno Download search error: {e}")
         return []
