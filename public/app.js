@@ -63,12 +63,21 @@ async function performSearch(query) {
 
     statusEl.classList.add('hidden');
 
+    const effectiveQuery = data.query || query;
+
+    if (data.resolvedFrom) {
+      const banner = document.createElement('div');
+      banner.className = 'resolved-banner';
+      banner.innerHTML = `Spotify-Link erkannt &rarr; Suche nach <strong>${escapeHtml(effectiveQuery)}</strong>`;
+      resultsEl.appendChild(banner);
+    }
+
     if (data.results && data.results.length > 0) {
-      renderResults(data.results, query);
+      renderResults(data.results, effectiveQuery);
     } else {
-      resultsEl.innerHTML = `
+      resultsEl.innerHTML += `
         <div class="no-results">
-          <p>Keine Ergebnisse für "<strong>${escapeHtml(query)}</strong>"</p>
+          <p>Keine Ergebnisse für "<strong>${escapeHtml(effectiveQuery)}</strong>"</p>
           <p style="font-size:13px;margin-top:8px;">Versuche einen anderen Suchbegriff</p>
         </div>
       `;

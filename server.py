@@ -2,6 +2,7 @@ import os
 
 from flask import Flask, jsonify, request, send_from_directory
 
+from spotify_resolver import is_spotify_track_url, resolve_spotify_track
 from stores import get_store_list, search_all
 
 app = Flask(__name__, static_folder="public", static_url_path="")
@@ -20,6 +21,18 @@ def api_search():
     if not q:
         return jsonify({"results": [], "query": ""})
 
+    original_query = q
+    resolved_from = None
+    if is_spotify_track_url(q):
+        resolved = resolve_spotify_track(q)
+        if not resolved:
+            return jsonify({
+                "error": "Spotify-Link konnte nicht aufgelöst werden",
+                "message": "Track-Infos konnten von Spotify nicht geladen werden.",
+            }), 502
+        resolved_from = q
+        q = resolved
+
     selected_stores = store_filter.split(",") if store_filter else None
 
     try:
@@ -30,11 +43,15 @@ def api_search():
             r.price_value or float("inf"),
         ))
 
-        return jsonify({
+        payload = {
             "results": [r.to_dict() for r in results],
             "query": q,
             "total": len(results),
-        })
+        }
+        if resolved_from:
+            payload["resolvedFrom"] = resolved_from
+            payload["originalQuery"] = original_query
+        return jsonify(payload)
     except Exception as e:
         print(f"Search error: {e}")
         return jsonify({"error": "Search failed", "message": str(e)}), 500

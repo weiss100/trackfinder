@@ -200,6 +200,20 @@ header h1 {
   font-size: 13px;
 }
 
+.resolved-banner {
+  background: linear-gradient(135deg, rgba(108, 92, 231, 0.15), rgba(29, 185, 84, 0.15));
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 14px;
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--text);
+}
+
+.resolved-banner strong {
+  color: var(--accent-light);
+}
+
 .result-card {
   display: flex;
   gap: 12px;
