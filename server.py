@@ -3,7 +3,11 @@ import os
 from flask import Flask, jsonify, request, send_from_directory
 
 from fx import convert_to_eur
-from spotify_resolver import is_spotify_track_url, resolve_spotify_track
+from spotify_resolver import (
+    is_spotify_track_url,
+    normalize_for_search,
+    resolve_spotify_track,
+)
 from stores import get_store_list, search_all
 
 app = Flask(__name__, static_folder="public", static_url_path="")
@@ -24,6 +28,7 @@ def api_search():
 
     original_query = q
     resolved_from = None
+    search_query = q
     if is_spotify_track_url(q):
         resolved = resolve_spotify_track(q)
         if not resolved:
@@ -33,11 +38,12 @@ def api_search():
             }), 502
         resolved_from = q
         q = resolved
+        search_query = normalize_for_search(resolved)
 
     selected_stores = store_filter.split(",") if store_filter else None
 
     try:
-        results = search_all(q, selected_stores)
+        results = search_all(search_query, selected_stores)
 
         results.sort(key=lambda r: (
             0 if r.price_value else 1,

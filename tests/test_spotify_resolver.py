@@ -5,7 +5,11 @@ import json
 import pytest
 
 import spotify_resolver
-from spotify_resolver import is_spotify_track_url, resolve_spotify_track
+from spotify_resolver import (
+    is_spotify_track_url,
+    normalize_for_search,
+    resolve_spotify_track,
+)
 
 
 class FakeResponse:
@@ -143,3 +147,18 @@ def test_resolve_returns_none_when_request_raises(monkeypatch):
     monkeypatch.setattr(spotify_resolver.requests, "get", boom)
 
     assert resolve_spotify_track("https://open.spotify.com/track/abc") is None
+
+
+@pytest.mark.parametrize("raw, expected", [
+    # Resolver format: keep only the primary artist
+    ("NOTSOBAD, Able Faces - Hollow Ground", "NOTSOBAD Hollow Ground"),
+    ("Daft Punk - One More Time", "Daft Punk One More Time"),
+    ("A, B, C - Track", "A Track"),
+    # No dash shape: just strip separators
+    ("Artist1/Artist2 | Track", "Artist1 Artist2 Track"),
+    ("  spaces   already   collapsed  ", "spaces already collapsed"),
+    ("No separators here", "No separators here"),
+    ("", ""),
+])
+def test_normalize_for_search(raw, expected):
+    assert normalize_for_search(raw) == expected

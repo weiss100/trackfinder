@@ -58,7 +58,7 @@ def test_spotify_url_is_resolved_before_search(client, monkeypatch):
 
     def fake_resolver(url):
         captured["resolver_url"] = url
-        return "NOTSOBAD - Hollow Ground"
+        return "NOTSOBAD, Able Faces - Hollow Ground"
 
     def fake_search_all(query, selected_stores):
         captured["search_query"] = query
@@ -73,8 +73,11 @@ def test_spotify_url_is_resolved_before_search(client, monkeypatch):
 
     assert resp.status_code == 200
     assert captured["resolver_url"] == spotify_url
-    assert captured["search_query"] == "NOTSOBAD - Hollow Ground"
-    assert body["query"] == "NOTSOBAD - Hollow Ground"
+    # Stores receive the slim form — primary artist only, no separators — so
+    # strict matchers like Amazon's can find the track.
+    assert captured["search_query"] == "NOTSOBAD Hollow Ground"
+    # User-facing query keeps the pretty resolved form for display.
+    assert body["query"] == "NOTSOBAD, Able Faces - Hollow Ground"
     assert body["resolvedFrom"] == spotify_url
     assert body["originalQuery"] == spotify_url
 

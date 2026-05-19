@@ -11,6 +11,34 @@ _SPOTIFY_TRACK_RE = re.compile(
     re.IGNORECASE,
 )
 
+_SEPARATORS_RE = re.compile(r"[\-,/|]+")
+_WHITESPACE_RE = re.compile(r"\s+")
+
+
+def normalize_for_search(query: str) -> str:
+    """Reduce a resolved "Artist1, Artist2 - Title" string to a slim search query.
+
+    Two transformations layered on top of each other:
+
+    1. If the string has the resolver's "<artists> - <title>" shape, keep only
+       the primary (first) artist. Amazon's search returns zero hits when a
+       featured/co-artist appears in the query — e.g. "NOTSOBAD Able Faces
+       Hollow Ground" finds nothing, while "NOTSOBAD Hollow Ground" finds the
+       track. Other stores tolerate either shape, so the reduction is a strict
+       improvement.
+
+    2. Replace remaining separator punctuation with spaces so non-resolver
+       queries (and any leftover punctuation in the title) tokenize cleanly.
+    """
+    if not query:
+        return query
+    if " - " in query:
+        artists_part, title_part = query.split(" - ", 1)
+        primary_artist = artists_part.split(",")[0].strip()
+        query = f"{primary_artist} {title_part}"
+    cleaned = _SEPARATORS_RE.sub(" ", query)
+    return _WHITESPACE_RE.sub(" ", cleaned).strip()
+
 _NEXT_DATA_RE = re.compile(
     r'<script id="__NEXT_DATA__"[^>]*>(.*?)</script>',
     re.S,
