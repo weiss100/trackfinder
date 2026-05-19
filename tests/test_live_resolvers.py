@@ -15,11 +15,14 @@ import pytest
 
 from models import TrackResult
 from spotify_resolver import resolve_spotify_track
-from stores import amazon_music, bandcamp, beatport, itunes, juno, traxsource
+from stores import amazon_music, beatport, itunes, juno, traxsource
 
 pytestmark = pytest.mark.live
 
-QUERY = "daft punk one more time"
+# Generic genre term — hits every store regardless of catalog focus.
+# Don't change this to an artist name; specialty stores (Traxsource etc.)
+# won't carry every act and the live test will go red for no reason.
+QUERY = "techno"
 
 
 def _assert_track_results(results, store_label: str):
@@ -52,10 +55,6 @@ def test_traxsource_live():
 
 def test_juno_live():
     _assert_track_results(juno.search(QUERY), "juno")
-
-
-def test_bandcamp_live():
-    _assert_track_results(bandcamp.search(QUERY), "bandcamp")
 
 
 def test_itunes_live():

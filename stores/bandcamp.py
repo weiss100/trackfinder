@@ -1,3 +1,8 @@
+# Disabled: bandcamp.com search is gated by a Fastly bot-management client
+# challenge ("/_fs-ch-.../script.js") that requires JS execution to solve.
+# Plain HTTP requests get a CSP-locked 3 KB shell with zero search data, so
+# the scraper below cannot work in its current form. Re-enable only after
+# adding a headless-browser dependency (Playwright, etc.).
 from __future__ import annotations
 
 import re
