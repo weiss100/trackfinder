@@ -132,6 +132,10 @@ function renderResults(results, query) {
       </div>
       <div class="result-right">
         <div class="result-price">${escapeHtml(track.price)}</div>
+        ${track.priceEur != null
+          ? `<div class="result-price-eur">≈ ${track.priceEur.toFixed(2).replace('.', ',')} €</div>`
+          : ''
+        }
         <span class="result-store ${storeClass}">${escapeHtml(track.store)}</span>
       </div>
     `;

@@ -95,6 +95,27 @@ def test_spotify_url_resolution_failure_returns_502(client, monkeypatch):
     assert called["n"] == 0
 
 
+def test_non_eur_results_get_price_eur_injected(client, monkeypatch):
+    monkeypatch.setattr(server, "convert_to_eur", lambda value, currency: 1.18 if currency == "USD" else None)
+
+    def fake_search_all(query, selected_stores):
+        return [
+            _track(1.29, store="itunes"),  # EUR -> no conversion
+            TrackResult(
+                title="USD track", artist="x", label="", genre="", bpm=None, key=None,
+                duration="", price="$1.29", price_value=1.29, currency="USD",
+                artwork=None, url="https://x", store="x", store_icon="x", release_date="",
+            ),
+        ]
+    monkeypatch.setattr(server, "search_all", fake_search_all)
+
+    body = client.get("/api/search?q=q").get_json()
+    by_store = {r["store"]: r for r in body["results"]}
+
+    assert "priceEur" not in by_store["itunes"]
+    assert by_store["x"]["priceEur"] == 1.18
+
+
 def test_search_error_returns_500(client, monkeypatch):
     def boom(*a, **kw):
         raise RuntimeError("kaputt")

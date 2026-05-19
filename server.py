@@ -2,6 +2,7 @@ import os
 
 from flask import Flask, jsonify, request, send_from_directory
 
+from fx import convert_to_eur
 from spotify_resolver import is_spotify_track_url, resolve_spotify_track
 from stores import get_store_list, search_all
 
@@ -43,10 +44,19 @@ def api_search():
             r.price_value or float("inf"),
         ))
 
+        items = []
+        for r in results:
+            d = r.to_dict()
+            if r.price_value and r.price_value > 0 and (r.currency or "EUR").upper() != "EUR":
+                eur = convert_to_eur(r.price_value, r.currency)
+                if eur is not None:
+                    d["priceEur"] = round(eur, 2)
+            items.append(d)
+
         payload = {
-            "results": [r.to_dict() for r in results],
+            "results": items,
             "query": q,
-            "total": len(results),
+            "total": len(items),
         }
         if resolved_from:
             payload["resolvedFrom"] = resolved_from
