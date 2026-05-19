@@ -4,7 +4,7 @@ import concurrent.futures
 from typing import Optional
 
 from models import TrackResult
-from stores import beatport, traxsource, juno, bandcamp, itunes
+from stores import beatport, traxsource, juno, bandcamp, itunes, amazon_music
 
 _STORES: dict[str, object] = {
     "beatport": beatport,
@@ -12,6 +12,7 @@ _STORES: dict[str, object] = {
     "juno": juno,
     "bandcamp": bandcamp,
     "itunes": itunes,
+    "amazon": amazon_music,
 }
 
 

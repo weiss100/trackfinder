@@ -20,6 +20,7 @@
   --juno: #e74c3c;
   --bandcamp: #1da0c3;
   --itunes: #fc3c44;
+  --amazon: #00a8e1;
 }
 
 body {
@@ -305,6 +306,7 @@ header h1 {
 .store-juno { background: var(--juno); color: #fff; }
 .store-bandcamp { background: var(--bandcamp); color: #fff; }
 .store-itunes, .store-apple { background: var(--itunes); color: #fff; }
+.store-amazon { background: var(--amazon); color: #fff; }
 
 /* Empty State */
 .empty-state {
