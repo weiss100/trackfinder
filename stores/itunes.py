@@ -17,7 +17,7 @@ def _format_duration(ms: int) -> str:
 
 def search(query: str) -> list[TrackResult]:
     try:
-        url = f"https://itunes.apple.com/search?term={quote(query)}&media=music&entity=song&limit=25"
+        url = f"https://itunes.apple.com/search?term={quote(query)}&media=music&entity=song&country=DE&limit=25"
         resp = requests.get(url, timeout=10)
         if not resp.ok:
             return []
@@ -32,9 +32,12 @@ def search(query: str) -> list[TrackResult]:
 
             price = "N/A"
             price_value = None
-            if track.get("trackPrice"):
-                price = f"{track['trackPrice']} {track.get('currency', 'USD')}"
-                price_value = track["trackPrice"]
+            raw_price = track.get("trackPrice")
+            # iTunes returns -1 for tracks that aren't available for individual purchase
+            # (album-only, region-locked, streaming-only via Apple Music).
+            if isinstance(raw_price, (int, float)) and raw_price > 0:
+                price = f"{raw_price} {track.get('currency', 'EUR')}"
+                price_value = float(raw_price)
 
             artwork = None
             if track.get("artworkUrl100"):
