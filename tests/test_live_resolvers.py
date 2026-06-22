@@ -11,10 +11,7 @@ silently returns zero results in production.
 """
 from __future__ import annotations
 
-from urllib.parse import quote
-
 import pytest
-import requests
 
 from models import TrackResult
 from spotify_resolver import resolve_spotify_track
@@ -60,45 +57,22 @@ def test_itunes_live():
     _assert_track_results(itunes.search(QUERY), "itunes")
 
 
-# Amazon serves a captcha/bot-check page to datacenter IPs (e.g. CI runners)
-# instead of search results. That HTTP 200 page carries no listings, so the
-# scraper correctly returns []. These markers let us tell that IP block apart
-# from a genuine markup regression so CI doesn't go red on something that works
-# fine from a normal residential IP.
+# Amazon throttles datacenter IPs (e.g. CI runners) with an HTTP 503
+# "Tut uns Leid!" bot page that carries no listings, so the scraper correctly
+# returns []. Detect that block from the same response we parse — a second
+# request could disagree, since the throttle is per-request — and skip rather
+# than fail, so a real markup regression (200 page, 0 results) still goes red
+# while a CI-only IP block does not.
 _AMAZON_BOT_WALL_MARKERS = (
-    "enter the characters you see below",
-    "type the characters you see in this image",
     "to discuss automated access to amazon data",
+    "enter the characters you see below",
     "/errors/validatecaptcha",
-    "not a robot",
 )
 
 
-def _amazon_is_bot_walled() -> bool:
-    url = f"{amazon_music._STORE_URL}/s?k={quote(QUERY)}&i=digital-music"
-    try:
-        body = requests.get(url, headers=amazon_music.HEADERS, timeout=10).text.lower()
-    except requests.RequestException:
-        return False
-    return any(marker in body for marker in _AMAZON_BOT_WALL_MARKERS)
-
-
 def test_amazon_music_live():
-    results = amazon_music.search(QUERY)
-    if not results:
-        # TEMP DIAGNOSTIC: surface exactly what Amazon serves the CI runner.
-        import re as _re
-        url = f"{amazon_music._STORE_URL}/s?k={quote(QUERY)}&i=digital-music"
-        resp = requests.get(url, headers=amazon_music.HEADERS, timeout=10)
-        body = resp.text
-        title = _re.search(r"<title>(.*?)</title>", body, _re.S | _re.I)
-        title = title.group(1).strip()[:120] if title else "<none>"
-        snippet = _re.sub(r"\s+", " ", body)[:600]
-        raise AssertionError(
-            f"AMAZON-DIAG status={resp.status_code} len={len(body)} "
-            f"hits={[m for m in _AMAZON_BOT_WALL_MARKERS if m in body.lower()]} "
-            f"title={title!r} snippet={snippet!r}"
-        )
-    if not results and _amazon_is_bot_walled():
-        pytest.skip("Amazon served a bot-check page (datacenter IP block), not a scraper regression")
-    _assert_track_results(results, "amazon_music")
+    resp = amazon_music.fetch(QUERY)
+    body = resp.text.lower()
+    if resp.status_code == 503 or any(m in body for m in _AMAZON_BOT_WALL_MARKERS):
+        pytest.skip(f"Amazon throttled this IP (HTTP {resp.status_code} bot page), not a scraper regression")
+    _assert_track_results(amazon_music.parse(resp.text), "amazon_music")
