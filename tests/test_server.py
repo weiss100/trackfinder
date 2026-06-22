@@ -36,17 +36,17 @@ def test_plain_query_passes_through_and_sorts_by_price(client, monkeypatch):
         return [
             _track(2.99, store="beatport"),
             _track(None, store="bandcamp"),
-            _track(1.49, store="juno"),
+            _track(1.49, store="traxsource"),
         ]
 
     monkeypatch.setattr(server, "search_all", fake_search_all)
 
-    resp = client.get("/api/search?q=hollow+ground&stores=beatport,juno")
+    resp = client.get("/api/search?q=hollow+ground&stores=beatport,traxsource")
     body = resp.get_json()
 
     assert resp.status_code == 200
     assert captured["query"] == "hollow ground"
-    assert captured["stores"] == ["beatport", "juno"]
+    assert captured["stores"] == ["beatport", "traxsource"]
     assert [r["priceValue"] for r in body["results"]] == [1.49, 2.99, None]
     assert body["query"] == "hollow ground"
     assert body["total"] == 3
@@ -135,5 +135,6 @@ def test_stores_endpoint_lists_known_stores(client):
     keys = {s["key"] for s in body}
 
     assert resp.status_code == 200
-    assert {"beatport", "traxsource", "juno", "itunes", "amazon"} <= keys
+    assert {"beatport", "traxsource", "itunes", "amazon"} <= keys
     assert "bandcamp" not in keys
+    assert "juno" not in keys

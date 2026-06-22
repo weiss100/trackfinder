@@ -4,16 +4,19 @@ import concurrent.futures
 from typing import Optional
 
 from models import TrackResult
-from stores import beatport, traxsource, juno, itunes, amazon_music
+from stores import beatport, traxsource, itunes, amazon_music
 
 # Bandcamp is intentionally excluded: its search pages are served behind a
 # Fastly bot-management challenge that requires a real JS runtime to solve.
 # Re-add only if we ever wire up a headless browser.
+#
+# Juno Download was removed after the store shut down in 2026 (its search now
+# redirects to a captcha-gated homepage). Volumo is its suggested successor and
+# a likely replacement via its public JSON API at volumo.com/api/v1.
 
 _STORES: dict[str, object] = {
     "beatport": beatport,
     "traxsource": traxsource,
-    "juno": juno,
     "itunes": itunes,
     "amazon": amazon_music,
 }

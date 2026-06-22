@@ -11,11 +11,14 @@ silently returns zero results in production.
 """
 from __future__ import annotations
 
+from urllib.parse import quote
+
 import pytest
+import requests
 
 from models import TrackResult
 from spotify_resolver import resolve_spotify_track
-from stores import amazon_music, beatport, itunes, juno, traxsource
+from stores import amazon_music, beatport, itunes, traxsource
 
 pytestmark = pytest.mark.live
 
@@ -53,13 +56,35 @@ def test_traxsource_live():
     _assert_track_results(traxsource.search(QUERY), "traxsource")
 
 
-def test_juno_live():
-    _assert_track_results(juno.search(QUERY), "juno")
-
-
 def test_itunes_live():
     _assert_track_results(itunes.search(QUERY), "itunes")
 
 
+# Amazon serves a captcha/bot-check page to datacenter IPs (e.g. CI runners)
+# instead of search results. That HTTP 200 page carries no listings, so the
+# scraper correctly returns []. These markers let us tell that IP block apart
+# from a genuine markup regression so CI doesn't go red on something that works
+# fine from a normal residential IP.
+_AMAZON_BOT_WALL_MARKERS = (
+    "enter the characters you see below",
+    "type the characters you see in this image",
+    "to discuss automated access to amazon data",
+    "/errors/validatecaptcha",
+    "not a robot",
+)
+
+
+def _amazon_is_bot_walled() -> bool:
+    url = f"{amazon_music._STORE_URL}/s?k={quote(QUERY)}&i=digital-music"
+    try:
+        body = requests.get(url, headers=amazon_music.HEADERS, timeout=10).text.lower()
+    except requests.RequestException:
+        return False
+    return any(marker in body for marker in _AMAZON_BOT_WALL_MARKERS)
+
+
 def test_amazon_music_live():
-    _assert_track_results(amazon_music.search(QUERY), "amazon_music")
+    results = amazon_music.search(QUERY)
+    if not results and _amazon_is_bot_walled():
+        pytest.skip("Amazon served a bot-check page (datacenter IP block), not a scraper regression")
+    _assert_track_results(results, "amazon_music")
