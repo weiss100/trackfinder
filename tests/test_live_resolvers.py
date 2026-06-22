@@ -85,6 +85,20 @@ def _amazon_is_bot_walled() -> bool:
 
 def test_amazon_music_live():
     results = amazon_music.search(QUERY)
+    if not results:
+        # TEMP DIAGNOSTIC: surface exactly what Amazon serves the CI runner.
+        import re as _re
+        url = f"{amazon_music._STORE_URL}/s?k={quote(QUERY)}&i=digital-music"
+        resp = requests.get(url, headers=amazon_music.HEADERS, timeout=10)
+        body = resp.text
+        title = _re.search(r"<title>(.*?)</title>", body, _re.S | _re.I)
+        title = title.group(1).strip()[:120] if title else "<none>"
+        snippet = _re.sub(r"\s+", " ", body)[:600]
+        raise AssertionError(
+            f"AMAZON-DIAG status={resp.status_code} len={len(body)} "
+            f"hits={[m for m in _AMAZON_BOT_WALL_MARKERS if m in body.lower()]} "
+            f"title={title!r} snippet={snippet!r}"
+        )
     if not results and _amazon_is_bot_walled():
         pytest.skip("Amazon served a bot-check page (datacenter IP block), not a scraper regression")
     _assert_track_results(results, "amazon_music")
