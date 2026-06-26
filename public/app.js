@@ -8,6 +8,14 @@ const storeFilters = document.getElementById('storeFilters');
 
 let activeStores = ['all'];
 
+// Select the whole query on focus so a click/tab immediately overwrites it.
+// 'focus' alone loses the selection on the click's mouseup, so we re-apply it
+// on the click that put focus there.
+searchInput.addEventListener('focus', () => searchInput.select());
+searchInput.addEventListener('click', () => {
+  if (searchInput.selectionStart === searchInput.selectionEnd) searchInput.select();
+});
+
 // Store filter handling
 storeFilters.addEventListener('click', (e) => {
   const chip = e.target.closest('.store-chip');
