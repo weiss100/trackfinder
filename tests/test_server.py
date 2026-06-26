@@ -53,6 +53,30 @@ def test_plain_query_passes_through_and_sorts_by_price(client, monkeypatch):
     assert "resolvedFrom" not in body
 
 
+def test_beatport_url_is_resolved_before_search(client, monkeypatch):
+    captured = {}
+
+    def fake_resolver(url):
+        captured["resolver_url"] = url
+        return "Joezi - Nocturnal"
+
+    def fake_search_all(query, selected_stores):
+        captured["search_query"] = query
+        return [_track(1.99)]
+
+    monkeypatch.setattr(server, "resolve_beatport_track", fake_resolver)
+    monkeypatch.setattr(server, "search_all", fake_search_all)
+
+    bp_url = "https://www.beatport.com/track/nocturnal/16659867"
+    body = client.get(f"/api/search?q={bp_url}").get_json()
+
+    assert captured["resolver_url"] == bp_url
+    assert captured["search_query"] == "Joezi Nocturnal"
+    assert body["query"] == "Joezi - Nocturnal"
+    assert body["resolvedFrom"] == bp_url
+    assert body["resolvedSource"] == "Beatport"
+
+
 def test_relevant_result_outranks_cheaper_irrelevant_one(client, monkeypatch):
     def fake_search_all(query, selected_stores):
         return [

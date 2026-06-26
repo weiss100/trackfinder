@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import pytest
 
+from beatport_resolver import resolve_beatport_track
 from models import TrackResult
 from spotify_resolver import resolve_spotify_track
 from stores import amazon_music, bandcamp, beatport, traxsource
@@ -47,6 +48,15 @@ def test_spotify_resolver_live():
 
 def test_beatport_live():
     _assert_track_results(beatport.search(QUERY), "beatport")
+
+
+def test_beatport_resolver_live():
+    """Beatport track page still exposes title + artists in __NEXT_DATA__."""
+    result = resolve_beatport_track("https://www.beatport.com/track/nocturnal/16659867")
+
+    assert result is not None, "Beatport resolver returned None — page format may have changed"
+    assert "Nocturnal" in result, f"unexpected title in '{result}'"
+    assert "Joezi" in result, f"unexpected artist in '{result}'"
 
 
 def test_traxsource_live():

@@ -12,6 +12,7 @@ A DJ track search engine that searches multiple online music stores simultaneous
 ## Features
 
 - Search by track name, artist, or label
+- Paste a Spotify or Beatport track link to look it up across the other stores
 - Filter results by store
 - Results sorted by price (lowest first)
 - Track metadata: BPM, key, genre, duration, artwork, release date

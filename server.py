@@ -2,6 +2,7 @@ import os
 
 from flask import Flask, jsonify, request, send_from_directory
 
+from beatport_resolver import is_beatport_track_url, resolve_beatport_track
 from fx import convert_to_eur
 from ranking import relevance
 from spotify_resolver import (
@@ -29,15 +30,26 @@ def api_search():
 
     original_query = q
     resolved_from = None
+    resolved_source = None
     search_query = q
-    if is_spotify_track_url(q):
-        resolved = resolve_spotify_track(q)
+    # Paste a store track URL and we look up the track, then search every other
+    # store for it. Built per-request so test monkeypatches on the resolvers
+    # apply. Each entry is (label, matcher, resolver).
+    resolvers = [
+        ("Spotify", is_spotify_track_url, resolve_spotify_track),
+        ("Beatport", is_beatport_track_url, resolve_beatport_track),
+    ]
+    resolver = next(((label, fn) for label, matches, fn in resolvers if matches(q)), None)
+    if resolver:
+        source, resolve = resolver
+        resolved = resolve(q)
         if not resolved:
             return jsonify({
-                "error": "Spotify-Link konnte nicht aufgelöst werden",
-                "message": "Track-Infos konnten von Spotify nicht geladen werden.",
+                "error": f"{source}-Link konnte nicht aufgelöst werden",
+                "message": f"Track-Infos konnten von {source} nicht geladen werden.",
             }), 502
         resolved_from = q
+        resolved_source = source
         q = resolved
         search_query = normalize_for_search(resolved)
 
@@ -71,6 +83,7 @@ def api_search():
         }
         if resolved_from:
             payload["resolvedFrom"] = resolved_from
+            payload["resolvedSource"] = resolved_source
             payload["originalQuery"] = original_query
         return jsonify(payload)
     except Exception as e:

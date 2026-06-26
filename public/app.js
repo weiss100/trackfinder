@@ -12,7 +12,7 @@ let activeStores = ['all'];
 // instantly, without re-querying.
 let lastResults = [];
 let lastQuery = '';
-let showResolvedBanner = false;
+let resolvedSource = null;  // e.g. 'Spotify' / 'Beatport' when a link was resolved
 
 // Select the whole query on focus so a click/tab immediately overwrites it.
 // 'focus' alone loses the selection on the click's mouseup, so we re-apply it
@@ -82,7 +82,7 @@ async function performSearch(query) {
 
     lastResults = data.results || [];
     lastQuery = data.query || query;
-    showResolvedBanner = Boolean(data.resolvedFrom);
+    resolvedSource = data.resolvedFrom ? (data.resolvedSource || 'Link') : null;
 
     renderView();
   } catch (err) {
@@ -99,10 +99,10 @@ async function performSearch(query) {
 function renderView() {
   resultsEl.innerHTML = '';
 
-  if (showResolvedBanner) {
+  if (resolvedSource) {
     const banner = document.createElement('div');
     banner.className = 'resolved-banner';
-    banner.innerHTML = `Spotify-Link erkannt &rarr; Suche nach <strong>${escapeHtml(lastQuery)}</strong>`;
+    banner.innerHTML = `${escapeHtml(resolvedSource)}-Link erkannt &rarr; Suche nach <strong>${escapeHtml(lastQuery)}</strong>`;
     resultsEl.appendChild(banner);
   }
 
