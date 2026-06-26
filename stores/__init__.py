@@ -4,7 +4,7 @@ import concurrent.futures
 from typing import Optional
 
 from models import TrackResult
-from stores import beatport, traxsource, itunes, amazon_music
+from stores import beatport, traxsource, amazon_music
 
 # Bandcamp is intentionally excluded: its search pages are served behind a
 # Fastly bot-management challenge that requires a real JS runtime to solve.
@@ -17,7 +17,6 @@ from stores import beatport, traxsource, itunes, amazon_music
 _STORES: dict[str, object] = {
     "beatport": beatport,
     "traxsource": traxsource,
-    "itunes": itunes,
     "amazon": amazon_music,
 }
 

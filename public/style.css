@@ -18,7 +18,6 @@
   --beatport: #94d500;
   --traxsource: #1da0c3;
   --bandcamp: #1da0c3;
-  --itunes: #fc3c44;
   --amazon: #00a8e1;
 }
 
@@ -343,7 +342,6 @@ header h1 {
 .store-beatport { background: var(--beatport); color: #000; }
 .store-traxsource { background: var(--traxsource); color: #fff; }
 .store-bandcamp { background: var(--bandcamp); color: #fff; }
-.store-itunes, .store-apple { background: var(--itunes); color: #fff; }
 .store-amazon { background: var(--amazon); color: #fff; }
 
 /* Empty State */

@@ -15,7 +15,7 @@ import pytest
 
 from models import TrackResult
 from spotify_resolver import resolve_spotify_track
-from stores import amazon_music, beatport, itunes, traxsource
+from stores import amazon_music, beatport, traxsource
 
 pytestmark = pytest.mark.live
 
@@ -51,10 +51,6 @@ def test_beatport_live():
 
 def test_traxsource_live():
     _assert_track_results(traxsource.search(QUERY), "traxsource")
-
-
-def test_itunes_live():
-    _assert_track_results(itunes.search(QUERY), "itunes")
 
 
 # Amazon throttles datacenter IPs (e.g. CI runners) with an HTTP 503

@@ -7,7 +7,7 @@ A DJ track search engine that searches multiple online music stores simultaneous
 - **Beatport** – Electronic music
 - **Traxsource** – House, disco, and urban music
 - **Bandcamp** – Independent artists
-- **iTunes** – Mainstream music (via Apple API)
+- **Amazon Music** – Mainstream music
 
 ## Features
 
@@ -47,4 +47,4 @@ Open http://localhost:3000 in your browser.
 
 - **Backend:** Python, Flask, BeautifulSoup, Requests
 - **Frontend:** Vanilla HTML/CSS/JavaScript
-- **Data sources:** Web scraping (Beatport, Traxsource, Bandcamp) + iTunes Search API
+- **Data sources:** Web scraping (Beatport, Traxsource, Bandcamp, Amazon Music)

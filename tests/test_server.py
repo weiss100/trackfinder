@@ -103,7 +103,7 @@ def test_non_eur_results_get_price_eur_injected(client, monkeypatch):
 
     def fake_search_all(query, selected_stores):
         return [
-            _track(1.29, store="itunes"),  # EUR -> no conversion
+            _track(1.29, store="beatport"),  # EUR -> no conversion
             TrackResult(
                 title="USD track", artist="x", label="", genre="", bpm=None, key=None,
                 duration="", price="$1.29", price_value=1.29, currency="USD",
@@ -115,7 +115,7 @@ def test_non_eur_results_get_price_eur_injected(client, monkeypatch):
     body = client.get("/api/search?q=q").get_json()
     by_store = {r["store"]: r for r in body["results"]}
 
-    assert "priceEur" not in by_store["itunes"]
+    assert "priceEur" not in by_store["beatport"]
     assert by_store["x"]["priceEur"] == 1.18
 
 
@@ -135,6 +135,7 @@ def test_stores_endpoint_lists_known_stores(client):
     keys = {s["key"] for s in body}
 
     assert resp.status_code == 200
-    assert {"beatport", "traxsource", "itunes", "amazon"} <= keys
+    assert {"beatport", "traxsource", "amazon"} <= keys
+    assert "itunes" not in keys
     assert "bandcamp" not in keys
     assert "juno" not in keys
