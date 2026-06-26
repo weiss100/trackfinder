@@ -153,26 +153,6 @@ header h1 {
   color: white;
 }
 
-.store-chip.disabled,
-.store-chip[disabled] {
-  opacity: 0.45;
-  cursor: not-allowed;
-  color: var(--text-dim);
-}
-
-.store-chip.disabled:hover,
-.store-chip[disabled]:hover {
-  border-color: var(--border);
-  color: var(--text-dim);
-}
-
-.chip-lock {
-  width: 11px;
-  height: 11px;
-  vertical-align: -1px;
-  margin-right: 4px;
-}
-
 /* Status */
 .status {
   text-align: center;

@@ -135,7 +135,6 @@ def test_stores_endpoint_lists_known_stores(client):
     keys = {s["key"] for s in body}
 
     assert resp.status_code == 200
-    assert {"beatport", "traxsource", "amazon"} <= keys
+    assert {"beatport", "traxsource", "bandcamp", "amazon"} <= keys
     assert "itunes" not in keys
-    assert "bandcamp" not in keys
     assert "juno" not in keys

@@ -15,7 +15,7 @@ import pytest
 
 from models import TrackResult
 from spotify_resolver import resolve_spotify_track
-from stores import amazon_music, beatport, traxsource
+from stores import amazon_music, bandcamp, beatport, traxsource
 
 pytestmark = pytest.mark.live
 
@@ -51,6 +51,18 @@ def test_beatport_live():
 
 def test_traxsource_live():
     _assert_track_results(traxsource.search(QUERY), "traxsource")
+
+
+def test_bandcamp_live():
+    """Bandcamp needs Playwright + a browser to clear its Fastly challenge.
+
+    Skip (rather than fail) when neither is installed, so the absence of a
+    browser on a given machine doesn't masquerade as a scraper regression.
+    """
+    html = bandcamp.fetch(QUERY)
+    if html is None:
+        pytest.skip("Bandcamp unavailable: Playwright or a browser is not installed here")
+    _assert_track_results(bandcamp.parse(html), "bandcamp")
 
 
 # Amazon throttles datacenter IPs (e.g. CI runners) with an HTTP 503

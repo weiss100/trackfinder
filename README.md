@@ -28,6 +28,19 @@ python -m venv .venv
 .venv/bin/pip install -r requirements.txt       # Linux/macOS
 ```
 
+The Bandcamp scraper drives a headless browser (Playwright) to clear Bandcamp's
+bot challenge. Install a browser once after the pip install:
+
+```bash
+.venv/Scripts/python -m playwright install chromium   # Windows
+# or
+.venv/bin/python -m playwright install chromium       # Linux/macOS
+```
+
+A system Chrome is used automatically if present; otherwise this bundled
+Chromium is the fallback. Without a browser, Bandcamp simply returns no results
+and the other stores work as usual.
+
 ## Usage
 
 **Windows:**
