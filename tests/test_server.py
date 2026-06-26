@@ -53,6 +53,22 @@ def test_plain_query_passes_through_and_sorts_by_price(client, monkeypatch):
     assert "resolvedFrom" not in body
 
 
+def test_relevant_result_outranks_cheaper_irrelevant_one(client, monkeypatch):
+    def fake_search_all(query, selected_stores):
+        return [
+            # Cheaper, but only matches the artist — not the requested title.
+            _track(0.99, store="beatport", title="Some Other Song", artist="Of The Trees"),
+            # Pricier, but the actual track the user searched for.
+            _track(2.49, store="bandcamp", title="The Owl Song", artist="Of The Trees"),
+        ]
+
+    monkeypatch.setattr(server, "search_all", fake_search_all)
+
+    body = client.get("/api/search?q=Of+The+Trees+The+Owl+Song").get_json()
+    titles = [r["title"] for r in body["results"]]
+    assert titles == ["The Owl Song", "Some Other Song"]
+
+
 def test_spotify_url_is_resolved_before_search(client, monkeypatch):
     captured = {}
 

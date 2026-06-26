@@ -3,6 +3,7 @@ import os
 from flask import Flask, jsonify, request, send_from_directory
 
 from fx import convert_to_eur
+from ranking import relevance
 from spotify_resolver import (
     is_spotify_track_url,
     normalize_for_search,
@@ -45,7 +46,11 @@ def api_search():
     try:
         results = search_all(search_query, selected_stores)
 
+        # Rank by relevance to the query first so the actually-requested track
+        # rises above other songs by the same artist; price only breaks ties
+        # between equally relevant hits.
         results.sort(key=lambda r: (
+            -round(relevance(search_query, r.title, r.artist, r.label), 3),
             0 if r.price_value else 1,
             r.price_value or float("inf"),
         ))
