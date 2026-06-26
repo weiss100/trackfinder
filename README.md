@@ -45,7 +45,7 @@ and the other stores work as usual.
 
 **Windows:**
 ```
-start.bat
+trackfinder.bat
 ```
 
 **Manual:**
