@@ -8,6 +8,12 @@ const storeFilters = document.getElementById('storeFilters');
 
 let activeStores = ['all'];
 
+// Keep the full result set in memory so the store chips can filter the view
+// instantly, without re-querying.
+let lastResults = [];
+let lastQuery = '';
+let showResolvedBanner = false;
+
 // Select the whole query on focus so a click/tab immediately overwrites it.
 // 'focus' alone loses the selection on the click's mouseup, so we re-apply it
 // on the click that put focus there.
@@ -46,6 +52,9 @@ storeFilters.addEventListener('click', (e) => {
       allChip.classList.add('active');
     }
   }
+
+  // Re-filter the results already on screen instead of waiting for a new search.
+  if (lastResults.length) renderView();
 });
 
 // Search
@@ -65,31 +74,17 @@ async function performSearch(query) {
   statusEl.innerHTML = '<span class="spinner"></span>Suche in allen Stores...';
 
   try {
-    const storeParam = activeStores.includes('all') ? '' : `&stores=${activeStores.join(',')}`;
-    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}${storeParam}`);
+    // Always fetch every store so the chips can filter the results client-side.
+    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
     const data = await res.json();
 
     statusEl.classList.add('hidden');
 
-    const effectiveQuery = data.query || query;
+    lastResults = data.results || [];
+    lastQuery = data.query || query;
+    showResolvedBanner = Boolean(data.resolvedFrom);
 
-    if (data.resolvedFrom) {
-      const banner = document.createElement('div');
-      banner.className = 'resolved-banner';
-      banner.innerHTML = `Spotify-Link erkannt &rarr; Suche nach <strong>${escapeHtml(effectiveQuery)}</strong>`;
-      resultsEl.appendChild(banner);
-    }
-
-    if (data.results && data.results.length > 0) {
-      renderResults(data.results, effectiveQuery);
-    } else {
-      resultsEl.innerHTML += `
-        <div class="no-results">
-          <p>Keine Ergebnisse für "<strong>${escapeHtml(effectiveQuery)}</strong>"</p>
-          <p style="font-size:13px;margin-top:8px;">Versuche einen anderen Suchbegriff</p>
-        </div>
-      `;
-    }
+    renderView();
   } catch (err) {
     statusEl.classList.remove('hidden');
     statusEl.innerHTML = 'Fehler bei der Suche. Bitte nochmal versuchen.';
@@ -97,6 +92,45 @@ async function performSearch(query) {
   } finally {
     searchBtn.disabled = false;
   }
+}
+
+// Render lastResults filtered by the active store chips. Called both after a
+// search and whenever the store selection changes.
+function renderView() {
+  resultsEl.innerHTML = '';
+
+  if (showResolvedBanner) {
+    const banner = document.createElement('div');
+    banner.className = 'resolved-banner';
+    banner.innerHTML = `Spotify-Link erkannt &rarr; Suche nach <strong>${escapeHtml(lastQuery)}</strong>`;
+    resultsEl.appendChild(banner);
+  }
+
+  if (lastResults.length === 0) {
+    resultsEl.innerHTML += `
+      <div class="no-results">
+        <p>Keine Ergebnisse für "<strong>${escapeHtml(lastQuery)}</strong>"</p>
+        <p style="font-size:13px;margin-top:8px;">Versuche einen anderen Suchbegriff</p>
+      </div>
+    `;
+    return;
+  }
+
+  const visible = activeStores.includes('all')
+    ? lastResults
+    : lastResults.filter(r => activeStores.includes(r.storeIcon));
+
+  if (visible.length === 0) {
+    resultsEl.innerHTML += `
+      <div class="no-results">
+        <p>Keine Ergebnisse in den gewählten Stores</p>
+        <p style="font-size:13px;margin-top:8px;">Wähle einen anderen Store</p>
+      </div>
+    `;
+    return;
+  }
+
+  renderResults(visible, lastQuery);
 }
 
 function renderResults(results, query) {
