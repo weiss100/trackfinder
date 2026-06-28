@@ -21,7 +21,7 @@ HEADERS = {
 
 def _parse_price(text: str) -> tuple[str, float | None]:
     if not text:
-        return "N/A", None
+        return "", None
     m = re.search(r"(\d+)[,.](\d{2})", text)
     if not m:
         return text.strip(), None
