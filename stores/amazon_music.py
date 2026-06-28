@@ -39,63 +39,73 @@ def _extract_artist(item) -> str:
     return text
 
 
+def fetch(query: str) -> requests.Response:
+    """Raw search request. Split out from search() so callers (e.g. the live
+    smoke test) can inspect the response — Amazon throttles datacenter IPs with
+    an HTTP 503 "Tut uns Leid!" bot page that carries no listings."""
+    url = f"{_STORE_URL}/s?k={quote(query)}&i=digital-music"
+    return requests.get(url, headers=HEADERS, timeout=10)
+
+
+def parse(html: str) -> list[TrackResult]:
+    soup = BeautifulSoup(html, "html.parser")
+    results: list[TrackResult] = []
+
+    for item in soup.select('[data-component-type="s-search-result"]')[:25]:
+        # Skip sponsored ads — Amazon injects paid placements from other
+        # categories (books, greeting cards, mugs) into music search.
+        if item.select_one(".puis-sponsored-label-text"):
+            continue
+
+        h2 = item.select_one("h2")
+        if not h2:
+            continue
+        title = h2.get("aria-label") or h2.get_text(strip=True)
+        if not title or title.startswith("Gesponserte Anzeige"):
+            continue
+
+        link_el = item.select_one('[data-cy="title-recipe"] a[href]')
+        href = link_el.get("href", "") if link_el else ""
+        track_url = f"{_STORE_URL}{href}" if href and not href.startswith("http") else href
+
+        artist = _extract_artist(item)
+
+        price_el = item.select_one(".a-price .a-offscreen") or item.select_one(".a-color-price")
+        price_text = price_el.get_text(strip=True) if price_el else ""
+        price, price_value = _parse_price(price_text)
+
+        artwork = None
+        img_el = item.select_one("img.s-image")
+        if img_el:
+            artwork = img_el.get("src")
+
+        results.append(TrackResult(
+            title=title,
+            artist=artist,
+            label="",
+            genre="",
+            bpm=None,
+            key=None,
+            duration="",
+            price=price,
+            price_value=price_value,
+            currency="EUR",
+            artwork=artwork,
+            url=track_url,
+            store=STORE_NAME,
+            store_icon="amazon",
+            release_date="",
+        ))
+
+    return results
+
+
 def search(query: str) -> list[TrackResult]:
     try:
-        url = f"{_STORE_URL}/s?k={quote(query)}&i=digital-music"
-        resp = requests.get(url, headers=HEADERS, timeout=10)
+        resp = fetch(query)
         if not resp.ok:
             return []
-
-        soup = BeautifulSoup(resp.text, "html.parser")
-        results: list[TrackResult] = []
-
-        for item in soup.select('[data-component-type="s-search-result"]')[:25]:
-            # Skip sponsored ads — Amazon injects paid placements from other
-            # categories (books, greeting cards, mugs) into music search.
-            if item.select_one(".puis-sponsored-label-text"):
-                continue
-
-            h2 = item.select_one("h2")
-            if not h2:
-                continue
-            title = h2.get("aria-label") or h2.get_text(strip=True)
-            if not title or title.startswith("Gesponserte Anzeige"):
-                continue
-
-            link_el = item.select_one('[data-cy="title-recipe"] a[href]')
-            href = link_el.get("href", "") if link_el else ""
-            track_url = f"{_STORE_URL}{href}" if href and not href.startswith("http") else href
-
-            artist = _extract_artist(item)
-
-            price_el = item.select_one(".a-price .a-offscreen") or item.select_one(".a-color-price")
-            price_text = price_el.get_text(strip=True) if price_el else ""
-            price, price_value = _parse_price(price_text)
-
-            artwork = None
-            img_el = item.select_one("img.s-image")
-            if img_el:
-                artwork = img_el.get("src")
-
-            results.append(TrackResult(
-                title=title,
-                artist=artist,
-                label="",
-                genre="",
-                bpm=None,
-                key=None,
-                duration="",
-                price=price,
-                price_value=price_value,
-                currency="EUR",
-                artwork=artwork,
-                url=track_url,
-                store=STORE_NAME,
-                store_icon="amazon",
-                release_date="",
-            ))
-
-        return results
+        return parse(resp.text)
     except Exception as e:
         print(f"Amazon Music search error: {e}")
         return []

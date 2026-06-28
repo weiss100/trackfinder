@@ -13,9 +13,10 @@ from __future__ import annotations
 
 import pytest
 
+from beatport_resolver import resolve_beatport_track
 from models import TrackResult
 from spotify_resolver import resolve_spotify_track
-from stores import amazon_music, beatport, itunes, juno, traxsource
+from stores import amazon_music, bandcamp, beatport, traxsource
 
 pytestmark = pytest.mark.live
 
@@ -49,17 +50,47 @@ def test_beatport_live():
     _assert_track_results(beatport.search(QUERY), "beatport")
 
 
+def test_beatport_resolver_live():
+    """Beatport track page still exposes title + artists in __NEXT_DATA__."""
+    result = resolve_beatport_track("https://www.beatport.com/track/nocturnal/16659867")
+
+    assert result is not None, "Beatport resolver returned None — page format may have changed"
+    assert "Nocturnal" in result, f"unexpected title in '{result}'"
+    assert "Joezi" in result, f"unexpected artist in '{result}'"
+
+
 def test_traxsource_live():
     _assert_track_results(traxsource.search(QUERY), "traxsource")
 
 
-def test_juno_live():
-    _assert_track_results(juno.search(QUERY), "juno")
+def test_bandcamp_live():
+    """Bandcamp needs Playwright + a browser to clear its Fastly challenge.
+
+    Skip (rather than fail) when neither is installed, so the absence of a
+    browser on a given machine doesn't masquerade as a scraper regression.
+    """
+    html = bandcamp.fetch(QUERY)
+    if html is None:
+        pytest.skip("Bandcamp unavailable: Playwright or a browser is not installed here")
+    _assert_track_results(bandcamp.parse(html), "bandcamp")
 
 
-def test_itunes_live():
-    _assert_track_results(itunes.search(QUERY), "itunes")
+# Amazon throttles datacenter IPs (e.g. CI runners) with an HTTP 503
+# "Tut uns Leid!" bot page that carries no listings, so the scraper correctly
+# returns []. Detect that block from the same response we parse — a second
+# request could disagree, since the throttle is per-request — and skip rather
+# than fail, so a real markup regression (200 page, 0 results) still goes red
+# while a CI-only IP block does not.
+_AMAZON_BOT_WALL_MARKERS = (
+    "to discuss automated access to amazon data",
+    "enter the characters you see below",
+    "/errors/validatecaptcha",
+)
 
 
 def test_amazon_music_live():
-    _assert_track_results(amazon_music.search(QUERY), "amazon_music")
+    resp = amazon_music.fetch(QUERY)
+    body = resp.text.lower()
+    if resp.status_code == 503 or any(m in body for m in _AMAZON_BOT_WALL_MARKERS):
+        pytest.skip(f"Amazon throttled this IP (HTTP {resp.status_code} bot page), not a scraper regression")
+    _assert_track_results(amazon_music.parse(resp.text), "amazon_music")

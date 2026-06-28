@@ -36,21 +36,61 @@ def test_plain_query_passes_through_and_sorts_by_price(client, monkeypatch):
         return [
             _track(2.99, store="beatport"),
             _track(None, store="bandcamp"),
-            _track(1.49, store="juno"),
+            _track(1.49, store="traxsource"),
         ]
 
     monkeypatch.setattr(server, "search_all", fake_search_all)
 
-    resp = client.get("/api/search?q=hollow+ground&stores=beatport,juno")
+    resp = client.get("/api/search?q=hollow+ground&stores=beatport,traxsource")
     body = resp.get_json()
 
     assert resp.status_code == 200
     assert captured["query"] == "hollow ground"
-    assert captured["stores"] == ["beatport", "juno"]
+    assert captured["stores"] == ["beatport", "traxsource"]
     assert [r["priceValue"] for r in body["results"]] == [1.49, 2.99, None]
     assert body["query"] == "hollow ground"
     assert body["total"] == 3
     assert "resolvedFrom" not in body
+
+
+def test_beatport_url_is_resolved_before_search(client, monkeypatch):
+    captured = {}
+
+    def fake_resolver(url):
+        captured["resolver_url"] = url
+        return "Joezi - Nocturnal"
+
+    def fake_search_all(query, selected_stores):
+        captured["search_query"] = query
+        return [_track(1.99)]
+
+    monkeypatch.setattr(server, "resolve_beatport_track", fake_resolver)
+    monkeypatch.setattr(server, "search_all", fake_search_all)
+
+    bp_url = "https://www.beatport.com/track/nocturnal/16659867"
+    body = client.get(f"/api/search?q={bp_url}").get_json()
+
+    assert captured["resolver_url"] == bp_url
+    assert captured["search_query"] == "Joezi Nocturnal"
+    assert body["query"] == "Joezi - Nocturnal"
+    assert body["resolvedFrom"] == bp_url
+    assert body["resolvedSource"] == "Beatport"
+
+
+def test_relevant_result_outranks_cheaper_irrelevant_one(client, monkeypatch):
+    def fake_search_all(query, selected_stores):
+        return [
+            # Cheaper, but only matches the artist — not the requested title.
+            _track(0.99, store="beatport", title="Some Other Song", artist="Of The Trees"),
+            # Pricier, but the actual track the user searched for.
+            _track(2.49, store="bandcamp", title="The Owl Song", artist="Of The Trees"),
+        ]
+
+    monkeypatch.setattr(server, "search_all", fake_search_all)
+
+    body = client.get("/api/search?q=Of+The+Trees+The+Owl+Song").get_json()
+    titles = [r["title"] for r in body["results"]]
+    assert titles == ["The Owl Song", "Some Other Song"]
 
 
 def test_spotify_url_is_resolved_before_search(client, monkeypatch):
@@ -103,7 +143,7 @@ def test_non_eur_results_get_price_eur_injected(client, monkeypatch):
 
     def fake_search_all(query, selected_stores):
         return [
-            _track(1.29, store="itunes"),  # EUR -> no conversion
+            _track(1.29, store="beatport"),  # EUR -> no conversion
             TrackResult(
                 title="USD track", artist="x", label="", genre="", bpm=None, key=None,
                 duration="", price="$1.29", price_value=1.29, currency="USD",
@@ -115,7 +155,7 @@ def test_non_eur_results_get_price_eur_injected(client, monkeypatch):
     body = client.get("/api/search?q=q").get_json()
     by_store = {r["store"]: r for r in body["results"]}
 
-    assert "priceEur" not in by_store["itunes"]
+    assert "priceEur" not in by_store["beatport"]
     assert by_store["x"]["priceEur"] == 1.18
 
 
@@ -135,5 +175,6 @@ def test_stores_endpoint_lists_known_stores(client):
     keys = {s["key"] for s in body}
 
     assert resp.status_code == 200
-    assert {"beatport", "traxsource", "juno", "itunes", "amazon"} <= keys
-    assert "bandcamp" not in keys
+    assert {"beatport", "traxsource", "bandcamp", "amazon"} <= keys
+    assert "itunes" not in keys
+    assert "juno" not in keys
