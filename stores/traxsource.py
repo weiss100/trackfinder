@@ -40,7 +40,7 @@ def search(query: str) -> list[TrackResult]:
             label = label_el.get_text(strip=True) if label_el else ""
             genre_el = el.select_one(".genre a, .trk-genre a")
             genre = genre_el.get_text(strip=True) if genre_el else ""
-            price_el = el.select_one(".add-cart .price, .buy-btn, .trk-price")
+            price_el = el.select_one(".price, .add-cart .price, .buy-btn, .trk-price")
             price_text = price_el.get_text(strip=True) if price_el else ""
             link = title_el["href"] if title_el and title_el.get("href") else None
             img_el = el.select_one("img.lazy, img.trk-art")
@@ -50,9 +50,26 @@ def search(query: str) -> list[TrackResult]:
                 img = first_img.get("src") if first_img else None
 
             if title:
-                bpm_el = el.select_one(".bpm, .trk-bpm")
-                key_el = el.select_one(".key, .trk-key")
+                # Key and BPM share a single ".key-bpm" cell (e.g. "A#min" then "120").
+                key = bpm = None
+                kb_el = el.select_one(".key-bpm")
+                if kb_el:
+                    kb_parts = list(kb_el.stripped_strings)
+                    if kb_parts:
+                        key = kb_parts[0]
+                    if len(kb_parts) > 1:
+                        bpm = kb_parts[1]
+                else:
+                    bpm_el = el.select_one(".bpm, .trk-bpm")
+                    key_el = el.select_one(".key, .trk-key")
+                    bpm = bpm_el.get_text(strip=True) if bpm_el else None
+                    key = key_el.get_text(strip=True) if key_el else None
+
                 dur_el = el.select_one(".duration, .trk-duration")
+                duration = dur_el.get_text(strip=True).strip("()") if dur_el else ""
+
+                rd_el = el.select_one(".r-date")
+                release_date = rd_el.get_text(strip=True) if rd_el else ""
 
                 full_url = link if link and link.startswith("http") else f"{_STORE_URL}{link}" if link else f"{_STORE_URL}/search?term={quote(query)}"
                 results.append(TrackResult(
@@ -60,17 +77,17 @@ def search(query: str) -> list[TrackResult]:
                     artist=artist,
                     label=label,
                     genre=genre,
-                    bpm=bpm_el.get_text(strip=True) if bpm_el else None,
-                    key=key_el.get_text(strip=True) if key_el else None,
-                    duration=dur_el.get_text(strip=True) if dur_el else "",
-                    price=price_text or "$1.49",
-                    price_value=_parse_price(price_text or "$1.49"),
+                    bpm=bpm,
+                    key=key,
+                    duration=duration,
+                    price=price_text,
+                    price_value=_parse_price(price_text),
                     currency="USD",
                     artwork=img,
                     url=full_url,
                     store=STORE_NAME,
                     store_icon="traxsource",
-                    release_date="",
+                    release_date=release_date,
                 ))
 
         return results[:25]
