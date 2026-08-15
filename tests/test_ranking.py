@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from ranking import relevance
+from ranking import matches_query, relevance
 
 
 def test_exact_title_outranks_same_artist_other_song():
@@ -35,3 +35,28 @@ def test_label_contributes_to_coverage_but_not_title_bonus():
     in_label = relevance(q, "Some Title", "Some Artist", "Memory Palace")
     nowhere = relevance(q, "Some Title", "Some Artist", "Other Label")
     assert in_label > nowhere
+
+
+def test_matches_query_keeps_full_match_drops_lookalike():
+    q = "Yoko Y-Axis"
+    # Right title, wrong artist: the missing "yoko" gives it away.
+    assert not matches_query(q, "Y-Axis", "Phil Berg")
+    # The actual track matches every word.
+    assert matches_query(q, "Y-Axis", "Yoko")
+
+
+def test_matches_query_tolerates_one_miss_in_long_query():
+    q = "daft punk one more time harder"  # 6 meaningful tokens -> 1 miss allowed
+    assert matches_query(q, "One More Time", "Daft Punk")  # "harder" missing
+    # Two missing words is too many for this length.
+    assert not matches_query(q, "One More Time", "Someone")
+
+
+def test_matches_query_requires_all_words_for_short_query():
+    assert not matches_query("hollow ground", "Hollow Halls", "Whoever")
+    assert matches_query("hollow ground", "Hollow Ground", "Whoever")
+
+
+def test_matches_query_keeps_everything_when_query_has_no_signal():
+    # Pure stopwords carry no signal -> don't filter; price sort decides.
+    assert matches_query("the of and", "Anything", "Whoever")

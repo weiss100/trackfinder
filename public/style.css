@@ -304,6 +304,14 @@ header h1 {
   color: var(--green);
 }
 
+/* Bandcamp prices arrive a moment after the results (resolved out-of-band). */
+.result-price.price-loading {
+  font-weight: 400;
+  font-size: 12px;
+  color: var(--text-dim);
+  font-style: italic;
+}
+
 .result-price-eur {
   font-size: 11px;
   color: var(--text-dim);

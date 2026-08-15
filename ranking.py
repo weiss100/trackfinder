@@ -22,6 +22,30 @@ def _tokens(text: str) -> list[str]:
     return _TOKEN_RE.findall((text or "").lower())
 
 
+def _meaningful(query: str) -> set[str]:
+    return {t for t in _tokens(query) if t not in _STOPWORDS}
+
+
+def matches_query(query: str, title: str, artist: str = "", label: str = "") -> bool:
+    """Whether a result is a plausible hit for the query, or just store noise.
+
+    Stores match loosely and return tracks that merely share a word or two with
+    the query — a search for "Yoko - Y-Axis" surfaces every unrelated "Y-Axis"
+    by other artists. We require the result to actually contain the query's
+    meaningful words, tolerating roughly one unmatched word per four searched.
+    A wrong track usually gives itself away by missing the artist name, so this
+    drops the lookalikes while leaving minor gaps in long queries alone. When
+    the query has no meaningful words, nothing is filtered (price sort decides).
+    """
+    q_tokens = _meaningful(query)
+    if not q_tokens:
+        return True
+
+    haystack = set(_tokens(title)) | set(_tokens(artist)) | set(_tokens(label))
+    missed = sum(1 for t in q_tokens if t not in haystack)
+    return missed <= len(q_tokens) // 4
+
+
 def relevance(query: str, title: str, artist: str = "", label: str = "") -> float:
     """Score how well a result matches the query, in [0, 1.5].
 
@@ -33,7 +57,7 @@ def relevance(query: str, title: str, artist: str = "", label: str = "") -> floa
     Returns 0.0 when the query has no meaningful (non-stopword) words, so the
     caller falls back to its secondary sort (price).
     """
-    q_tokens = {t for t in _tokens(query) if t not in _STOPWORDS}
+    q_tokens = _meaningful(query)
     if not q_tokens:
         return 0.0
 

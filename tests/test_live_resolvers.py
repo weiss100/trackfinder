@@ -26,13 +26,33 @@ pytestmark = pytest.mark.live
 QUERY = "techno"
 
 
-def _assert_track_results(results, store_label: str):
+def _populated(value) -> bool:
+    """A field counts as populated if it carries real data (non-empty, >0)."""
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return value.strip() != ""
+    if isinstance(value, (int, float)):
+        return value > 0
+    return True
+
+
+def _assert_track_results(results, store_label: str, *, covered: tuple[str, ...] = ()):
     assert isinstance(results, list), f"{store_label}: not a list"
     assert len(results) > 0, f"{store_label}: zero results for '{QUERY}' — scraper likely broken"
     for r in results:
         assert isinstance(r, TrackResult), f"{store_label}: wrong type {type(r)}"
         assert r.title, f"{store_label}: result with empty title — {r}"
         assert r.url, f"{store_label}: result with empty url — {r}"
+
+    # Set-wide coverage: a scraper whose markup shifted often still yields rows
+    # with title+url while a per-field selector silently stops matching. Require
+    # that each named field is populated in at least one result, so a verwaister
+    # Selektor (price, bpm, key, …) turns the test red instead of shipping holes.
+    for field in covered:
+        assert any(_populated(getattr(r, field)) for r in results), (
+            f"{store_label}: no result populated '{field}' — its selector likely broke"
+        )
 
 
 def test_spotify_resolver_live():
@@ -47,7 +67,8 @@ def test_spotify_resolver_live():
 
 
 def test_beatport_live():
-    _assert_track_results(beatport.search(QUERY), "beatport")
+    # Full-metadata store: price, bpm and key must come through.
+    _assert_track_results(beatport.search(QUERY), "beatport", covered=("price_value", "bpm", "key"))
 
 
 def test_beatport_resolver_live():
@@ -60,7 +81,9 @@ def test_beatport_resolver_live():
 
 
 def test_traxsource_live():
-    _assert_track_results(traxsource.search(QUERY), "traxsource")
+    # Full-metadata store: price, bpm and key live in separate cells that have
+    # silently shifted before — assert each still parses.
+    _assert_track_results(traxsource.search(QUERY), "traxsource", covered=("price_value", "bpm", "key"))
 
 
 def test_bandcamp_live():
@@ -72,7 +95,9 @@ def test_bandcamp_live():
     html = bandcamp.fetch(QUERY)
     if html is None:
         pytest.skip("Bandcamp unavailable: Playwright or a browser is not installed here")
-    _assert_track_results(bandcamp.parse(html), "bandcamp")
+    # Bandcamp search carries no price/bpm/key; artist is the field most likely
+    # to break silently if the subhead markup shifts.
+    _assert_track_results(bandcamp.parse(html), "bandcamp", covered=("artist",))
 
 
 # Amazon throttles datacenter IPs (e.g. CI runners) with an HTTP 503
@@ -93,4 +118,5 @@ def test_amazon_music_live():
     body = resp.text.lower()
     if resp.status_code == 503 or any(m in body for m in _AMAZON_BOT_WALL_MARKERS):
         pytest.skip(f"Amazon throttled this IP (HTTP {resp.status_code} bot page), not a scraper regression")
-    _assert_track_results(amazon_music.parse(resp.text), "amazon_music")
+    # Amazon only exposes a price beyond title/artist; assert it still parses.
+    _assert_track_results(amazon_music.parse(resp.text), "amazon_music", covered=("price_value",))

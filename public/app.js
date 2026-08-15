@@ -85,6 +85,9 @@ async function performSearch(query) {
     resolvedSource = data.resolvedFrom ? (data.resolvedSource || 'Link') : null;
 
     renderView();
+    // Results are on screen; fill in the slow Bandcamp prices out-of-band so
+    // they never block the search itself.
+    resolveBandcampPrices();
   } catch (err) {
     statusEl.classList.remove('hidden');
     statusEl.innerHTML = 'Fehler bei der Suche. Bitte nochmal versuchen.';
@@ -130,7 +133,27 @@ function renderView() {
     return;
   }
 
-  renderResults(visible, lastQuery);
+  renderResults(sortResults(visible), lastQuery);
+}
+
+// Order: most relevant first; within equal relevance, priced hits (cheapest
+// first), then name-your-price, then results with no price. Mirrors _price_rank
+// in server.py. Bandcamp prices land via AJAX, so re-running this after they
+// arrive lifts those hits into place.
+function priceRank(track) {
+  if (track.priceValue && track.priceValue > 0) return [0, track.priceValue];
+  if ((track.price || '').trim().toLowerCase() === 'name your price') return [1, 0];
+  return [2, 0];
+}
+
+function sortResults(list) {
+  return list.slice().sort((a, b) => {
+    const rel = (b.relevanceScore || 0) - (a.relevanceScore || 0);
+    if (rel) return rel;
+    const [ta, va] = priceRank(a);
+    const [tb, vb] = priceRank(b);
+    return ta - tb || va - vb;
+  });
 }
 
 function renderResults(results, query) {
@@ -146,6 +169,7 @@ function renderResults(results, query) {
     const card = document.createElement('a');
     card.className = 'result-card';
     card.href = track.url;
+    card.dataset.url = track.url;  // lets the async Bandcamp price update find this card
     card.target = '_blank';
     card.rel = 'noopener noreferrer';
 
@@ -184,6 +208,46 @@ function renderResults(results, query) {
 
     resultsEl.appendChild(card);
   });
+}
+
+// Bandcamp's search page has no price; we resolve the top few out-of-band after
+// the results render, then patch each card in place (no reorder, no reload).
+const cssEscape = (window.CSS && CSS.escape) ? CSS.escape : (s => s.replace(/["\\]/g, '\\$&'));
+
+async function resolveBandcampPrices() {
+  const pending = lastResults
+    .filter(r => r.storeIcon === 'bandcamp' && r.priceValue == null && r.url)
+    .slice(0, 3);
+  if (!pending.length) return;
+
+  pending.forEach(r => setCardPriceLoading(r.url));
+
+  try {
+    const params = pending.map(r => `urls=${encodeURIComponent(r.url)}`).join('&');
+    const res = await fetch(`/api/bandcamp-prices?${params}`);
+    const prices = await res.json();
+    pending.forEach(r => {
+      const info = prices[r.url];
+      if (!info) return;
+      // Update the in-memory result so the re-render (and later chip filtering)
+      // reflects the resolved price.
+      r.price = info.price;
+      r.priceValue = info.priceValue;
+      if (info.priceEur != null) r.priceEur = info.priceEur;
+    });
+  } catch (err) {
+    console.error('Bandcamp-Preise konnten nicht geladen werden:', err);
+  }
+  // Re-render so newly priced hits sort up and any loading state clears.
+  renderView();
+}
+
+function setCardPriceLoading(url) {
+  const priceEl = resultsEl.querySelector(`.result-card[data-url="${cssEscape(url)}"] .result-price`);
+  if (priceEl) {
+    priceEl.textContent = 'Preis lädt …';
+    priceEl.classList.add('price-loading');
+  }
 }
 
 function escapeHtml(str) {

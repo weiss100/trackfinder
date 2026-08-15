@@ -68,7 +68,7 @@ def _build_track(t: dict) -> TrackResult | None:
     price_value = price_obj.get("value") if isinstance(price_obj, dict) else None
     currency = price_obj.get("code", "USD") if isinstance(price_obj, dict) else "USD"
     price_display = price_obj.get("display") if isinstance(price_obj, dict) else None
-    price = price_display or (f"{price_value:.2f} {currency}" if price_value else "N/A")
+    price = price_display or (f"{price_value:.2f} {currency}" if price_value else "")
 
     artwork = None
     release = t.get("release") or {}
