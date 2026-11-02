@@ -57,17 +57,35 @@ storeFilters.addEventListener('click', (e) => {
   if (lastResults.length) renderView();
 });
 
+searchBtn.addEventListener('animationend', () => searchBtn.classList.remove('pressed'));
+
 // Search
 searchForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   const query = searchInput.value.trim();
   if (!query) return;
 
+  // Restart the press animation even if it is still playing from a quick re-click.
+  searchBtn.classList.remove('pressed');
+  void searchBtn.offsetWidth;
+  searchBtn.classList.add('pressed');
+
   await performSearch(query);
 });
 
+// A new search aborts the previous one (and its Bandcamp price lookup), so
+// editing the query and searching again never waits on the stale request.
+let searchController = null;
+let pendingQuery = null;  // query whose /api/search request is still running
+
 async function performSearch(query) {
-  searchBtn.disabled = true;
+  // Re-submitting the query that is already loading just keeps it running.
+  if (query === pendingQuery) return;
+  if (searchController) searchController.abort();
+  const controller = new AbortController();
+  searchController = controller;
+  pendingQuery = query;
+
   emptyState.classList.add('hidden');
   resultsEl.innerHTML = '';
   statusEl.classList.remove('hidden');
@@ -75,7 +93,7 @@ async function performSearch(query) {
 
   try {
     // Always fetch every store so the chips can filter the results client-side.
-    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+    const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`, { signal: controller.signal });
     const data = await res.json();
 
     statusEl.classList.add('hidden');
@@ -87,13 +105,15 @@ async function performSearch(query) {
     renderView();
     // Results are on screen; fill in the slow Bandcamp prices out-of-band so
     // they never block the search itself.
-    resolveBandcampPrices();
+    resolveBandcampPrices(controller.signal);
   } catch (err) {
+    // Superseded by a newer search, which owns the status and results now.
+    if (err.name === 'AbortError') return;
     statusEl.classList.remove('hidden');
     statusEl.innerHTML = 'Fehler bei der Suche. Bitte nochmal versuchen.';
     console.error('Search error:', err);
   } finally {
-    searchBtn.disabled = false;
+    if (searchController === controller) pendingQuery = null;
   }
 }
 
@@ -214,7 +234,7 @@ function renderResults(results, query) {
 // the results render, then patch each card in place (no reorder, no reload).
 const cssEscape = (window.CSS && CSS.escape) ? CSS.escape : (s => s.replace(/["\\]/g, '\\$&'));
 
-async function resolveBandcampPrices() {
+async function resolveBandcampPrices(signal) {
   const pending = lastResults
     .filter(r => r.storeIcon === 'bandcamp' && r.priceValue == null && r.url)
     .slice(0, 3);
@@ -224,7 +244,7 @@ async function resolveBandcampPrices() {
 
   try {
     const params = pending.map(r => `urls=${encodeURIComponent(r.url)}`).join('&');
-    const res = await fetch(`/api/bandcamp-prices?${params}`);
+    const res = await fetch(`/api/bandcamp-prices?${params}`, { signal });
     const prices = await res.json();
     pending.forEach(r => {
       const info = prices[r.url];
@@ -236,6 +256,8 @@ async function resolveBandcampPrices() {
       if (info.priceEur != null) r.priceEur = info.priceEur;
     });
   } catch (err) {
+    // A newer search replaced these results; don't re-render over it.
+    if (err.name === 'AbortError') return;
     console.error('Bandcamp-Preise konnten nicht geladen werden:', err);
   }
   // Re-render so newly priced hits sort up and any loading state clears.
